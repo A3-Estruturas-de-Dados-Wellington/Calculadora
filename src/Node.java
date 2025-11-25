@@ -1,19 +1,11 @@
 public class Node {
-    String value;
-    Node left, right;
+    int value;
+    Node left;
+    Node right;
 
-    public Node(String value) {
+    public Node(int value) {
         this.value = value;
-    }
-
-    public Node(String value, Node left, Node right) {
-        this.value = value;
-        this.left = left;
-        this.right = right;
-    }
-
-    @Override
-    public String toString() {
-        return value;
+        this.left = null;
+        this.right = null;
     }
 }

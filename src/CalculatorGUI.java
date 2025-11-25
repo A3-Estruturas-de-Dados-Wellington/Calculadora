@@ -17,9 +17,10 @@ public class CalculatorGUI extends JFrame implements ActionListener {
     private JScrollPane scrollArvore;
     private JPanel painelPrincipal;
     private JTabbedPane abas;
+    private JTextArea lispArea;
 
     private final String[] botoes = {
-            "sin", "cos", "tan", "log", "C",
+            " ", " ", " ", "Conj", "C",
             "x", "y", "z", "(", ")",
             "7", "8", "9", "/", "*",
             "4", "5", "6", "+", "-",
@@ -29,7 +30,7 @@ public class CalculatorGUI extends JFrame implements ActionListener {
 
     public CalculatorGUI() {
         super("Calculadora de Complexos");
-        setSize(600, 650);
+        setSize(800, 700);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
@@ -38,9 +39,16 @@ public class CalculatorGUI extends JFrame implements ActionListener {
         painelPrincipal = criarPainelCalculadora();
         abas.add("Calculadora", painelPrincipal);
 
+        // Árvore Swing
         arvoreExecucao = new JTree(new DefaultMutableTreeNode("Nenhuma expressão avaliada"));
         scrollArvore = new JScrollPane(arvoreExecucao);
         abas.add("Árvore", scrollArvore);
+
+        // Aba LISP (texto)
+        lispArea = new JTextArea();
+        lispArea.setEditable(false);
+        JScrollPane scrollLisp = new JScrollPane(lispArea);
+        abas.add("LISP", scrollLisp);
 
         add(abas);
     }
@@ -81,38 +89,75 @@ public class CalculatorGUI extends JFrame implements ActionListener {
         Set<String> variableNames = new HashSet<>();
         Map<String, Complex> variableMap = new HashMap<>();
 
-        for (char c : expression.toCharArray()) {
+        for (int i = 0; i < expression.length(); i++) {
+            char c = expression.charAt(i);
             if (Character.isLetter(c)) {
-                String var = String.valueOf(c);
-                if (!var.equalsIgnoreCase("i")) {
-                    variableNames.add(var);
+                if (c == 'i' || c == 'I') continue;
+                StringBuilder sb = new StringBuilder();
+                int j = i;
+                while (j < expression.length() && Character.isLetter(expression.charAt(j))) {
+                    sb.append(expression.charAt(j));
+                    j++;
                 }
+                String var = sb.toString();
+                variableNames.add(var);
+                i = j - 1;
             }
         }
 
         for (String varName : variableNames) {
             String input = JOptionPane.showInputDialog(
                     this,
-                    "Digite o valor para " + varName + " (ex: 3+2i, -1, 4i)",
+                    "Digite o valor complexo para a variável " + varName + " (Ex: 3+2i, -5, 1i, i)",
                     "Entrada de Variável",
                     JOptionPane.QUESTION_MESSAGE
             );
 
-            if (input == null) return null;
+            if (input == null || input.trim().isEmpty()) {
+                return null;
+            }
 
             try {
                 Complex value = Complex.parse(input);
                 variableMap.put(varName, value);
-
+            } catch (IllegalArgumentException ex) {
+                JOptionPane.showMessageDialog(this, "Valor complexo inválido para " + varName + ". Tente novamente.", "Erro de Entrada", JOptionPane.ERROR_MESSAGE);
+                return null;
             } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this,
-                        "Valor inválido para " + varName,
-                        "Erro", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Erro inesperado ao analisar " + varName + ". Tente novamente.", "Erro de Entrada", JOptionPane.ERROR_MESSAGE);
                 return null;
             }
         }
+
         return variableMap;
     }
+
+    private void compararExpressoes() {
+        String expr1 = JOptionPane.showInputDialog(this, "Digite a primeira expressão:");
+        if (expr1 == null) return;
+
+        String expr2 = JOptionPane.showInputDialog(this, "Digite a segunda expressão:");
+        if (expr2 == null) return;
+
+        try {
+            ExpressionParser p1 = new ExpressionParser(expr1, new HashMap<>());
+            p1.evaluate(); // build AST
+            ExpressionParser p2 = new ExpressionParser(expr2, new HashMap<>());
+            p2.evaluate();
+
+            boolean iguais = p1.structurallyEquals(p2);
+
+            JOptionPane.showMessageDialog(this,
+                    iguais ? "As expressões são ESTRUTURALMENTE iguais."
+                            : "As expressões NÃO são iguais.");
+        }
+        catch (Exception ex) {
+            JOptionPane.showMessageDialog(this,
+                    "Erro ao comparar expressões:\n" + ex.getMessage(),
+                    "Erro", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
 
     @Override
     public void actionPerformed(ActionEvent e) {
@@ -135,9 +180,14 @@ public class CalculatorGUI extends JFrame implements ActionListener {
                 DefaultMutableTreeNode raiz = parser.getExecutionTree();
                 arvoreExecucao.setModel(new DefaultTreeModel(raiz));
 
+                // Expande toda a árvore
                 for (int i = 0; i < arvoreExecucao.getRowCount(); i++) {
                     arvoreExecucao.expandRow(i);
                 }
+
+                // Também atualiza aba LISP
+                String lisp = parser.getLispTree();
+                lispArea.setText(lisp);
 
                 abas.setSelectedIndex(1);
 
@@ -153,43 +203,30 @@ public class CalculatorGUI extends JFrame implements ActionListener {
         } else if ("log sin cos tan".contains(comando)) {
             tela.setText(textoAtual + comando + "(");
         } else if (comando.equals("==")) {
-            if (textoAtual.isEmpty()) return;
-
-            String expressao1 = textoAtual;
-            String expressao2 = JOptionPane.showInputDialog(
-                    this,
-                    "Digite a segunda expressão para comparar com:\n" + expressao1,
-                    "Comparar Expressões",
-                    JOptionPane.QUESTION_MESSAGE
-            );
-
-            if (expressao2 == null || expressao2.trim().isEmpty()) {
-                tela.setText("Comparação cancelada.");
-                return;
-            }
-
-            // Reutilizar o método collectVariables para resolver variáveis nas duas expressões
-            // (coletar apenas uma vez, mas usá-las nas duas expressões)
-            Map<String, Complex> variables = collectVariables(expressao1 + expressao2); // Para capturar todas as variáveis usadas
-            if (variables == null) {
-                tela.setText("Comparação cancelada.");
-                return;
-            }
-
+            compararExpressoes();
+        }else if (comando.equals("Conj")) {
             try {
-                ExpressionParser parser1 = new ExpressionParser(expressao1, variables);
-                ExpressionParser parser2 = new ExpressionParser(expressao2, variables);
+                textoAtual = tela.getText();
+                if (textoAtual.isEmpty()) return;
 
-                Complex resultado1 = parser1.evaluate();
-                Complex resultado2 = parser2.evaluate();
+                Map<String, Complex> vars = collectVariables(textoAtual);
+                if (vars == null) return;
 
-                if (resultado1.equals(resultado2)) {
-                    tela.setText("As expressões são iguais!");
-                } else {
-                    tela.setText("As expressões são diferentes.");
-                }
+                ExpressionParser parser = new ExpressionParser(textoAtual, vars);
+                Complex resultado = parser.evaluate();
+
+                Complex conj = resultado.conjugate();
+
+                tela.setText(conj.toString());
+
+                DefaultMutableTreeNode raiz = new DefaultMutableTreeNode("conjugado");
+                raiz.add(parser.getExecutionTree());
+                arvoreExecucao.setModel(new DefaultTreeModel(raiz));
+
+                abas.setSelectedIndex(1);
+
             } catch (Exception ex) {
-                tela.setText("Erro: " + ex.getMessage());
+                tela.setText("Erro");
             }
         }
         else {
