@@ -145,42 +145,24 @@ public class ExpressionParser {
 
         Complex result;
 
+        // Bloco modificado: Apenas processa variáveis, ignorando funções
         if (position < expression.length() && Character.isLetter(expression.charAt(position))) {
             int start = position;
-            while (position < expression.length() && Character.isLetter(expression.charAt(position))) position++;
+            // Lê o nome completo (ex: "x", "total", "var1")
+            while (position < expression.length() && Character.isLetter(expression.charAt(position))) {
+                position++;
+            }
             String name = expression.substring(start, position);
 
-            if (position < expression.length() && expression.charAt(position) == '(') {
-                position++;
-                Complex arg = evaluateAdditionSubtraction();
-                if (position < expression.length() && expression.charAt(position) == ')') position++;
-                else throw new IllegalArgumentException("Parênteses da função não fechados.");
-
-                Node argNode = root;
-                root = makeNode(name, argNode, null);
-
-                if (arg.getImag() != 0) {
-                    throw new IllegalArgumentException("Funções trigonométricas/log para parte imaginária não suportadas.");
-                }
-                double v = arg.getReal();
-                switch (name) {
-                    case "sin": result = new Complex(Math.sin(v), 0); break;
-                    case "cos": result = new Complex(Math.cos(v), 0); break;
-                    case "tan": result = new Complex(Math.tan(v), 0); break;
-                    case "log":
-                        if (v <= 0) throw new IllegalArgumentException("log de número não-positivo.");
-                        result = new Complex(Math.log(v), 0); break;
-                    default:
-                        throw new IllegalArgumentException("Função desconhecida: " + name);
-                }
-            } else {
-                String varName = name;
-                if (!allVariables.containsKey(varName))
-                    throw new IllegalArgumentException("Variável desconhecida: " + varName);
-                result = allVariables.get(varName);
-                root = new Node(varName);
+            // A lógica de verificar '(' e switch case foi removida.
+            // Agora tratamos tudo como variável.
+            if (!allVariables.containsKey(name)) {
+                throw new IllegalArgumentException("Variável desconhecida: " + name);
             }
+            result = allVariables.get(name);
+            root = new Node(name);
         }
+        // O resto continua igual (Raiz quadrada)
         else if (expression.substring(position).startsWith("√")) {
             position++;
             result = evaluateUnitary();
@@ -188,6 +170,7 @@ public class ExpressionParser {
             result = result.pow(0.5);
             root = new Node("√", child, null);
         }
+        // O resto continua igual (Parênteses)
         else if (position < expression.length() && expression.charAt(position) == '(') {
             int save = position;
             int start = position + 1;
@@ -217,6 +200,7 @@ public class ExpressionParser {
                 throw new IllegalArgumentException("Parênteses não fechados.");
             }
         }
+        // O resto continua igual (Números)
         else if (position < expression.length() && (Character.isDigit(expression.charAt(position)) || expression.charAt(position) == '.')) {
             int start = position;
             while (position < expression.length() &&
@@ -226,6 +210,7 @@ public class ExpressionParser {
             result = new Complex(Double.parseDouble(num), 0);
             root = new Node(num);
         }
+        // O resto continua igual (Unidade imaginária i)
         else if (position < expression.length() && (expression.charAt(position) == 'i' || expression.charAt(position) == 'I')) {
             position++;
             result = new Complex(0, 1);
